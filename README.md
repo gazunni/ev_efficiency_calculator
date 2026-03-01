@@ -1,0 +1,1 @@
+EV Efficiency Calculator. Physics-based efficiency and range calculator. Covers FWD and AWD variants with real-world scenario modelling including temperature, HVAC, load, grade, wind and traffic conditions.
