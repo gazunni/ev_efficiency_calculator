@@ -1,9 +1,0 @@
-{
-“name”: “ev-efficiency-calculator”,
-“version”: “2.0.0”,
-“type”: “module”,
-“description”: “Chevrolet EV Efficiency Calculator — physics-based educational tool”,
-“dependencies”: {
-“@neondatabase/serverless”: “^0.10.4”
-}
-}
