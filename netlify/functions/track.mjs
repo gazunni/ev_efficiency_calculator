@@ -14,7 +14,7 @@ return new Response(‘Bad JSON’, { status: 400 });
 
 const { event, value, page } = body;
 
-// Whitelist valid event names — never trust client input
+// Whitelist valid event names – never trust client input
 const VALID_EVENTS = [
 ‘vehicle_select’, ‘mode_select’, ‘unit_select’, ‘page_view’,
 ‘scenario_click’, ‘drivetrain_click’, ‘unit_switch’,
@@ -30,7 +30,7 @@ const safePage  = String(page  || ‘’).slice(0, 32);
 
 const sql = neon(process.env.NETLIFY_DATABASE_URL);
 
-// Table and schema already established — insert only
+// Table and schema already established – insert only
 await sql`INSERT INTO events (event, value, page) VALUES (${event}, ${safeValue}, ${safePage})`;
 
 return new Response(‘ok’, { status: 200 });
