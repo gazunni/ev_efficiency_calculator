@@ -188,7 +188,19 @@ var CFG={
   fwd:{label:"RWD Single Motor",eta:0.829,massAdd:0,  pack:75.7,epa_mi:260,mpge:107,awd:false},
   awd:{label:"AWD Dual Motor",  eta:0.821,massAdd:230,pack:75.7,epa_mi:240,mpge:100,awd:true}
 };
-var BM=1921,BCD=0.29,BA=2.474,BCR=0.009,GG=9.81,PACC=400,UA=155,AWD_CRR=0.0004;
+var BM=1921,BCD=0.29,BA=2.474,BCR=0.0078,GG=9.81,PACC=400,UA=155,AWD_CRR=0.0004;
+var TIRE_OPTS=[
+  ['Michelin 18" Select',0.0075],
+  ['Michelin/Bridgestone 19"',0.0078],
+  ['Continental 20" GT',0.0090],
+  ['Pirelli P Zero 20" GT PE',0.0095],
+  ['Aftermarket AS 19"',0.0094],
+  ['Aftermarket AS 20"',0.0100],
+  ['Winter 18/19"',0.0109],
+  ['Winter 18/19" on 20" car ★',0.0109],
+  ['Winter 20" (expensive/rare)',0.0115]
+];
+var TIRE_WARMUP=1.136;
 
 function rho(f,alt_ft){
   alt_ft=alt_ft||0;
@@ -221,8 +233,13 @@ function bEta(f,soh){
   return Math.max(0.82, base-sohPenalty);
 }
 function eCrr(p,aw,mass){
-  // Base Crr from PSI (lower pressure = more deformation = more resistance)
-  var base=Math.max(0.007,BCR+(36-p)*0.00015);
+  // Dynamic Crr from selected tire
+  var tireCrr=TIRE_OPTS[ST.tireIdx||0][1];
+  // Pressure: 0.4% Crr per PSI under spec (38 PSI)
+  var psiLow=Math.max(0,38-p);
+  var base=tireCrr*(1+0.004*psiLow);
+  // Cold warmup: +13.6% Crr first 10min
+  if(ST.warmup)base*=TIRE_WARMUP;
   // AWD bearing drag
   if(aw)base+=AWD_CRR;
   // Load-dependent deformation: tires flatten more under heavier load
@@ -277,7 +294,7 @@ var TCLR=["#60a5fa","#34d399","#a78bfa","#fbbf24","#f87171","#fb923c"];
 // ================================================================
 var BASE_CASE={
   ambientT:70,cabinT:72,wind:0,grade:0,
-  seat:false,whl:false,defrost:false,pax:1,cargo:0,roof:false,psi:42,
+  seat:false,whl:false,defrost:false,pax:1,cargo:0,roof:false,psi:38,tireIdx:0,warmup:false,
   traffic:"cruise",solar:"none",alt:0,soh:100
 };
 
@@ -1197,8 +1214,45 @@ function buildAdvancedPanel(wrap){
     fmt:function(v){return v>0?'+'+v+'%':v<0?v+'%':'Level';},
     onChange:function(v){ST.grade=v;markCustom();recomputeAndAnimate();}}));
   s2.appendChild(mkSlider({label:'Tire Pressure',emoji:'🛞',value:ST.psi,min:20,max:50,step:1,unit:' PSI',
-    color:'#90EE90',sub:'Nominal 42 PSI',
+    color:'#90EE90',sub:'Nominal 38 PSI',
     onChange:function(v){ST.psi=v;markCustom();recomputeAndAnimate();}}));
+  // Tire & Wheel selector
+  s2.appendChild(el('div',{style:{fontSize:'9px',color:'#64748b',fontWeight:'700',margin:'8px 0 4px',textTransform:'uppercase',letterSpacing:'.05em'}},'🛞 Wheel & Tire'));
+  var tsRow=el('div',{style:{display:'flex',flexWrap:'wrap',gap:'4px',marginBottom:'4px'}});
+  var tsBtns=[];
+  TIRE_OPTS.forEach(function(opt,idx){
+    var b=el('button',{style:{padding:'4px 7px',borderRadius:'5px',fontSize:'8.5px',fontWeight:'700',
+      border:'none',cursor:'pointer',whiteSpace:'nowrap',
+      background:ST.tireIdx===idx?'#16a34a':'#1e293b',
+      color:ST.tireIdx===idx?'#fff':'#94a3b8'}},opt[0]);
+    b.addEventListener('click',(function(i){
+      return function(){
+        ST.tireIdx=i;BCR=TIRE_OPTS[i][1];markCustom();
+        tsBtns.forEach(function(bb,j){bb.style.background=j===i?'#16a34a':'#1e293b';bb.style.color=j===i?'#fff':'#94a3b8';});
+        recomputeAndAnimate();
+      };
+    })(idx));
+    tsBtns.push(b);tsRow.appendChild(b);
+  });
+  s2.appendChild(tsRow);
+  s2.appendChild(el('div',{style:{fontSize:'8px',color:'#90EE90',marginBottom:'6px',lineHeight:'1.5'}},
+    'Select: Michelin 18in lowest Crr. Prem 19in: Michelin or Continental. GT 20in: Continental CrossContact RX. Winter: GT owners often run 18/19in winters on steel wheels — Quebec practice applies here too.'));;;
+  // Cold warmup toggle
+  var wuDiv=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',padding:'6px 8px',
+    background:'#0f172a',borderRadius:'6px',marginBottom:'8px',cursor:'pointer'}});
+  var wuBox=el('div',{style:{width:'13px',height:'13px',borderRadius:'3px',
+    border:'2px solid '+(ST.warmup?'#f59e0b':'#475569'),
+    background:ST.warmup?'#f59e0b':'transparent',flexShrink:'0',transition:'background .15s'}});
+  var wuTxt=el('div',{style:{fontSize:'9px',lineHeight:'1.4'}});
+  wuTxt.innerHTML='<b style="color:#f59e0b">\u2744\ufe0f Cold Tire Warmup</b><br><span style="color:#64748b">First 10 min \u00b7 tires stiff from cold \u00b7 +13.6% Crr</span>';
+  wuDiv.appendChild(wuBox);wuDiv.appendChild(wuTxt);
+  wuDiv.addEventListener('click',function(){
+    ST.warmup=!ST.warmup;
+    wuBox.style.background=ST.warmup?'#f59e0b':'transparent';
+    wuBox.style.borderColor=ST.warmup?'#f59e0b':'#475569';
+    markCustom();recomputeAndAnimate();
+  });
+  s2.appendChild(wuDiv);
   var altVal=ST.metric?Math.round(ST.alt*0.3048):ST.alt;
   s2.appendChild(mkSlider({label:'Altitude',emoji:'🏔️',value:altVal,min:0,max:ST.metric?2440:8000,
     step:ST.metric?100:500,color:'#2dd4bf',
